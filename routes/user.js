@@ -1,0 +1,70 @@
+const express = require('express');
+const router = express.Router();
+const { protect } = require('../middleware/auth');
+
+// Placeholder endpoints for user-related operations
+router.post('/submitUserCompanyProfile', protect, (req, res) => {
+  res.json({ message: 'Submit user company profile - To be implemented' });
+});
+
+router.get('/getUserCompanyProfile', protect, (req, res) => {
+  res.json({ message: 'Get user company profile - To be implemented' });
+});
+
+router.get('/getOldServiceProvider', protect, (req, res) => {
+  res.json({ message: 'Get old service provider - To be implemented' });
+});
+
+router.post('/saveAddress', protect, (req, res) => {
+  res.json({ message: 'Save address - To be implemented' });
+});
+
+router.get('/getSavedAddresses', protect, (req, res) => {
+  res.json({ message: 'Get saved addresses - To be implemented' });
+});
+
+router.get('/getAllSubscriptions', protect, (req, res) => {
+  res.json({ message: 'Get all subscriptions - To be implemented' });
+});
+
+router.post('/submitUserSubscription', protect, (req, res) => {
+  res.json({ message: 'Submit user subscription - To be implemented' });
+});
+
+router.post('/saveFavouriteItem', protect, (req, res) => {
+  res.json({ message: 'Save favourite item - To be implemented' });
+});
+
+router.delete('/deleteFavouriteItem', protect, (req, res) => {
+  res.json({ message: 'Delete favourite item - To be implemented' });
+});
+
+router.get('/getMyWishlist', protect, (req, res) => {
+  res.json({ message: 'Get my wishlist - To be implemented' });
+});
+
+router.get('/notification', protect, (req, res) => {
+  res.json({ message: 'Get notifications - To be implemented' });
+});
+
+router.put('/markNotificationsAsRead', protect, (req, res) => {
+  res.json({ message: 'Mark notifications as read - To be implemented' });
+});
+
+router.get('/getCountries', protect, (req, res) => {
+  res.json({ message: 'Get countries - To be implemented' });
+});
+
+router.get('/getStates', protect, (req, res) => {
+  res.json({ message: 'Get states - To be implemented' });
+});
+
+router.get('/getCities', protect, (req, res) => {
+  res.json({ message: 'Get cities - To be implemented' });
+});
+
+router.get('/getMultipleCities', protect, (req, res) => {
+  res.json({ message: 'Get multiple cities - To be implemented' });
+});
+
+module.exports = router;
