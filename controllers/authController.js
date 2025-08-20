@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Otp = require('../models/Otp');
 const UserRole = require('../models/UserRole');
 const UserType = require('../models/UserType');
+const Profile = require('../models/Profile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
@@ -199,7 +200,10 @@ exports.loginWithPassword = async (req, res) => {
         name: user.name,
         email: user.email,
         phone_number: user.phone_number,
-        is_profile_completed: user.is_profile_completed
+        is_profile_completed: user.is_profile_completed,
+        userRole: user.role ? { 
+          role: user.role 
+        } : null
       }
     });
   } catch (error) {
@@ -215,7 +219,7 @@ exports.loginWithPassword = async (req, res) => {
 // @access  Private
 exports.submitUserDetail = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, role } = req.body;
     const userId = req.user.id;
 
     const user = await User.findById(userId);
@@ -231,6 +235,7 @@ exports.submitUserDetail = async (req, res) => {
     if (name) user.name = name;
     if (email) user.email = email;
     if (password) user.password = password; // Will be hashed by pre-save hook
+    if (role) user.role = role;
 
     await user.save();
 
@@ -414,7 +419,7 @@ exports.updateGeneralProfileData = async (req, res) => {
 };
 
 // @desc    Complete user profile
-// @route   POST /api/save/timeslots
+// @route   POST /api/save/profile
 // @access  Private
 exports.completeProfile = async (req, res) => {
   try {
@@ -435,27 +440,92 @@ exports.completeProfile = async (req, res) => {
       lng
     } = req.body;
 
-    // Update user basic info
-    const updateData = {};
-    if (name) updateData.name = name;
+    // Parse timeSlots if it's a string
+    let parsedTimeSlots = timeSlots;
+    if (typeof timeSlots === 'string') {
+      try {
+        parsedTimeSlots = JSON.parse(timeSlots);
+      } catch (e) {
+        parsedTimeSlots = [];
+      }
+    }
 
-    // Mark profile as completed
-    updateData.is_profile_completed = 1;
-
-    const user = await User.findByIdAndUpdate(userId, updateData, {
-      new: true,
-      runValidators: true
-    });
-
-    if (!user) {
-      return res.status(404).json({
-        type: 'error',
-        message: 'User not found'
+    // Convert category IDs to category names
+    // Get the user's role to determine which category list to use
+    const user = await User.findById(userId);
+    const userRole = user.role || 'retailer';
+    
+    let categoryNames = [];
+    if (cats && Array.isArray(cats)) {
+      // Define categories based on role (same as in getCategories)
+      let categoryList = [];
+      if (userRole === 'retailer') {
+        categoryList = [
+          { id: 1, name: 'Restaurant' },
+          { id: 2, name: 'Fast Food' },
+          { id: 3, name: 'Bar & Pub' },
+          { id: 4, name: 'Cafe & Coffee Shop' },
+          { id: 5, name: 'Bakery' },
+          { id: 6, name: 'Food Truck' },
+          { id: 7, name: 'Catering Service' },
+          { id: 8, name: 'Grocery Store' },
+          { id: 9, name: 'Other' }
+        ];
+      } else if (userRole === 'supplier') {
+        categoryList = [
+          { id: 1, name: 'Meat & Poultry Supplier' },
+          { id: 2, name: 'Vegetable & Fruit Producer' },
+          { id: 3, name: 'Dairy Products Supplier' },
+          { id: 4, name: 'Beverage Distributor' },
+          { id: 5, name: 'Bakery Ingredients Supplier' },
+          { id: 6, name: 'Seafood Supplier' },
+          { id: 7, name: 'Kitchen Equipment Supplier' },
+          { id: 8, name: 'Packaging & Disposables' },
+          { id: 9, name: 'Other' }
+        ];
+      }
+      
+      // Map IDs to names
+      categoryNames = cats.map(catId => {
+        const category = categoryList.find(cat => cat.id === parseInt(catId));
+        return category ? category.name : catId.toString();
       });
     }
 
-    // Here you would typically save address, categories, etc. to separate tables
-    // For now, just returning success response to match Laravel API structure
+    // Create or update profile
+    const profileData = {
+      user_id: userId,
+      name: name || req.user.name,
+      address,
+      address2: address2 || '',
+      country_id,
+      state_id,
+      city_id: city_id || '',
+      zip,
+      aboutme,
+      radius: radius || '10',
+      timeSlots: parsedTimeSlots || [],
+      categories: categoryNames,
+      lat: lat || null,
+      lng: lng || null
+    };
+
+    // Use upsert to create or update
+    const profile = await Profile.findOneAndUpdate(
+      { user_id: userId },
+      profileData,
+      { 
+        new: true, 
+        upsert: true,
+        runValidators: true 
+      }
+    );
+
+    // Update user to mark profile as completed
+    await User.findByIdAndUpdate(userId, {
+      name: name || req.user.name,
+      is_profile_completed: 1
+    });
 
     res.status(200).json({
       type: 'success',

@@ -28,7 +28,7 @@ router.post('/submitUserRoles', submitUserRoles);
 router.get('/getUser', getUserDetails);
 router.post('/resetPassword', resetPassword);
 router.post('/updateGeneralProfileData', updateGeneralProfileData);
-router.post('/save/timeslots', completeProfile);
+router.post('/save/profile', completeProfile);
 router.post('/logout', logout);
 
 module.exports = router;

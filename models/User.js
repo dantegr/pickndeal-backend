@@ -60,6 +60,11 @@ const userSchema = new mongoose.Schema({
   },
   email_verified_at: {
     type: Date
+  },
+  role: {
+    type: String,
+    enum: ['retailer', 'supplier'],
+    default: 'retailer'
   }
 }, {
   timestamps: true

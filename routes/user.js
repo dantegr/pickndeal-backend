@@ -58,11 +58,11 @@ router.put('/markNotificationsAsRead', protect, (req, res) => {
   res.json({ message: 'Mark notifications as read - To be implemented' });
 });
 
-// Public routes
-router.get('/countries', getCountries);
-router.get('/states/:countryId', getStates);
-router.get('/cities/:stateId', getCities);
-router.get('/categories', getCategories);
+// Protected routes for location and categories
+router.get('/countries', protect, getCountries);
+router.get('/states/:countryId', protect, getStates);
+router.get('/cities', protect, getCities); // Changed to use query params
+router.get('/categories', protect, getCategories);
 
 // Protected routes
 router.get('/profile', protect, getUserProfile);

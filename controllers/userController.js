@@ -1,19 +1,18 @@
 const User = require('../models/User');
+const { Country, State, City } = require('country-state-city');
 
 // @desc    Get countries
 // @route   GET /api/countries
 // @access  Public
 exports.getCountries = async (req, res) => {
   try {
-    // Mock data for now - in a real app you'd have a Country model
-    const countries = [
-      { id: 1, name: 'United States' },
-      { id: 2, name: 'Canada' },
-      { id: 3, name: 'United Kingdom' },
-      { id: 4, name: 'India' },
-      { id: 5, name: 'Australia' }
-    ];
-
+    const countries = Country.getAllCountries().map(country => ({
+      id: country.isoCode,
+      name: country.name,
+      isoCode: country.isoCode,
+      phonecode: country.phonecode,
+      currency: country.currency
+    }));
     res.status(200).json(countries);
   } catch (error) {
     res.status(500).json({
@@ -29,15 +28,13 @@ exports.getCountries = async (req, res) => {
 exports.getStates = async (req, res) => {
   try {
     const { countryId } = req.params;
-    
-    // Mock data - in a real app you'd query based on countryId
-    const states = [
-      { id: 1, name: 'California', country_id: countryId },
-      { id: 2, name: 'New York', country_id: countryId },
-      { id: 3, name: 'Texas', country_id: countryId },
-      { id: 4, name: 'Florida', country_id: countryId }
-    ];
-
+    // countryId here is the ISO code (e.g., 'US', 'IN', 'GB')
+    const states = State.getStatesOfCountry(countryId).map(state => ({
+      id: state.isoCode,
+      name: state.name,
+      country_id: countryId,
+      isoCode: state.isoCode
+    }));
     res.status(200).json(states);
   } catch (error) {
     res.status(500).json({
@@ -52,16 +49,21 @@ exports.getStates = async (req, res) => {
 // @access  Public
 exports.getCities = async (req, res) => {
   try {
-    const { stateId } = req.params;
+    const { countryId, stateId } = req.query;
+    // We need both country and state ISO codes to get cities
+    if (!countryId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Country ID is required'
+      });
+    }
     
-    // Mock data - in a real app you'd query based on stateId
-    const cities = [
-      { id: 1, name: 'Los Angeles', state_id: stateId },
-      { id: 2, name: 'San Francisco', state_id: stateId },
-      { id: 3, name: 'San Diego', state_id: stateId },
-      { id: 4, name: 'Sacramento', state_id: stateId }
-    ];
-
+    const cities = City.getCitiesOfState(countryId, stateId).map(city => ({
+      id: city.name, // Using name as ID since there's no unique ID in the package
+      name: city.name,
+      state_id: stateId,
+      country_id: countryId
+    }));
     res.status(200).json(cities);
   } catch (error) {
     res.status(500).json({
@@ -73,20 +75,47 @@ exports.getCities = async (req, res) => {
 
 // @desc    Get categories
 // @route   GET /api/categories
-// @access  Public
+// @access  Private
 exports.getCategories = async (req, res) => {
   try {
-    // Mock data - in a real app you'd have a Category model
-    const categories = [
-      { id: 1, name: 'Electronics', title: 'Electronics' },
-      { id: 2, name: 'Clothing', title: 'Clothing' },
-      { id: 3, name: 'Home & Garden', title: 'Home & Garden' },
-      { id: 4, name: 'Sports', title: 'Sports' },
-      { id: 5, name: 'Books', title: 'Books' },
-      { id: 6, name: 'Automotive', title: 'Automotive' },
-      { id: 7, name: 'Food & Beverage', title: 'Food & Beverage' },
-      { id: 8, name: 'Health & Beauty', title: 'Health & Beauty' }
-    ];
+    const { role } = req.query;
+    
+    let categories = [];
+    
+    if (role === 'retailer') {
+      // Categories for retailers (food and drink businesses)
+      categories = [
+        { id: 1, name: 'Restaurant', title: 'Restaurant' },
+        { id: 2, name: 'Fast Food', title: 'Fast Food' },
+        { id: 3, name: 'Bar & Pub', title: 'Bar & Pub' },
+        { id: 4, name: 'Cafe & Coffee Shop', title: 'Cafe & Coffee Shop' },
+        { id: 5, name: 'Bakery', title: 'Bakery' },
+        { id: 6, name: 'Food Truck', title: 'Food Truck' },
+        { id: 7, name: 'Catering Service', title: 'Catering Service' },
+        { id: 8, name: 'Grocery Store', title: 'Grocery Store' },
+        { id: 9, name: 'Other', title: 'Other' }
+      ];
+    } else if (role === 'supplier') {
+      // Categories for suppliers (food and restaurant supplies)
+      categories = [
+        { id: 1, name: 'Meat & Poultry Supplier', title: 'Meat & Poultry Supplier' },
+        { id: 2, name: 'Vegetable & Fruit Producer', title: 'Vegetable & Fruit Producer' },
+        { id: 3, name: 'Dairy Products Supplier', title: 'Dairy Products Supplier' },
+        { id: 4, name: 'Beverage Distributor', title: 'Beverage Distributor' },
+        { id: 5, name: 'Bakery Ingredients Supplier', title: 'Bakery Ingredients Supplier' },
+        { id: 6, name: 'Seafood Supplier', title: 'Seafood Supplier' },
+        { id: 7, name: 'Kitchen Equipment Supplier', title: 'Kitchen Equipment Supplier' },
+        { id: 8, name: 'Packaging & Disposables', title: 'Packaging & Disposables' },
+        { id: 9, name: 'Other', title: 'Other' }
+      ];
+    } else {
+      // Default categories if no role specified
+      categories = [
+        { id: 1, name: 'Food & Beverage', title: 'Food & Beverage' },
+        { id: 2, name: 'Restaurant Supplies', title: 'Restaurant Supplies' },
+        { id: 3, name: 'Other', title: 'Other' }
+      ];
+    }
 
     res.status(200).json(categories);
   } catch (error) {
