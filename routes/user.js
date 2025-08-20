@@ -1,6 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { protect } = require('../middleware/auth');
+const {
+  getCountries,
+  getStates,
+  getCities,
+  getCategories,
+  getUserProfile
+} = require('../controllers/userController');
 
 // Placeholder endpoints for user-related operations
 router.post('/submitUserCompanyProfile', protect, (req, res) => {
@@ -51,17 +58,14 @@ router.put('/markNotificationsAsRead', protect, (req, res) => {
   res.json({ message: 'Mark notifications as read - To be implemented' });
 });
 
-router.get('/getCountries', protect, (req, res) => {
-  res.json({ message: 'Get countries - To be implemented' });
-});
+// Public routes
+router.get('/countries', getCountries);
+router.get('/states/:countryId', getStates);
+router.get('/cities/:stateId', getCities);
+router.get('/categories', getCategories);
 
-router.get('/getStates', protect, (req, res) => {
-  res.json({ message: 'Get states - To be implemented' });
-});
-
-router.get('/getCities', protect, (req, res) => {
-  res.json({ message: 'Get cities - To be implemented' });
-});
+// Protected routes
+router.get('/profile', protect, getUserProfile);
 
 router.get('/getMultipleCities', protect, (req, res) => {
   res.json({ message: 'Get multiple cities - To be implemented' });

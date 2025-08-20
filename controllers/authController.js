@@ -198,7 +198,8 @@ exports.loginWithPassword = async (req, res) => {
         id: user._id,
         name: user.name,
         email: user.email,
-        phone_number: user.phone_number
+        phone_number: user.phone_number,
+        is_profile_completed: user.is_profile_completed
       }
     });
   } catch (error) {
@@ -407,6 +408,63 @@ exports.updateGeneralProfileData = async (req, res) => {
   } catch (error) {
     res.status(500).json({
       success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Complete user profile
+// @route   POST /api/save/timeslots
+// @access  Private
+exports.completeProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      name,
+      address,
+      address2,
+      country_id,
+      state_id,
+      city_id,
+      zip,
+      aboutme,
+      radius,
+      timeSlots,
+      cats,
+      lat,
+      lng
+    } = req.body;
+
+    // Update user basic info
+    const updateData = {};
+    if (name) updateData.name = name;
+
+    // Mark profile as completed
+    updateData.is_profile_completed = 1;
+
+    const user = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        type: 'error',
+        message: 'User not found'
+      });
+    }
+
+    // Here you would typically save address, categories, etc. to separate tables
+    // For now, just returning success response to match Laravel API structure
+
+    res.status(200).json({
+      type: 'success',
+      message: 'Profile completed successfully',
+      to: '/dashboard'
+    });
+  } catch (error) {
+    res.status(500).json({
+      type: 'error',
       message: error.message
     });
   }
