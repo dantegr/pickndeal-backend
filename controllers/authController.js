@@ -5,11 +5,12 @@ const UserType = require('../models/UserType');
 const Profile = require('../models/Profile');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { geocodeAddress } = require('../services/geocodingService');
 
-// @desc    Get OTP for phone number
-// @route   POST /api/getOtp
+// @desc    Get OTP for signup (new users only)
+// @route   POST /api/getOtpForSignup
 // @access  Public
-exports.getOtp = async (req, res) => {
+exports.getOtpForSignup = async (req, res) => {
   try {
     const { phone_number } = req.body;
 
@@ -20,10 +21,154 @@ exports.getOtp = async (req, res) => {
       });
     }
 
-    // Find or create user
-    let user = await User.findOne({ phone_number });
+    // Check if user already exists
+    const existingUser = await User.findOne({ phone_number });
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'This phone number is already registered. Please login instead.'
+      });
+    }
+
+    // Create new user
+    const user = await User.create({ phone_number });
+
+    // Generate OTP
+    const verification_code = Math.floor(1000 + Math.random() * 9000);
+
+    // Create OTP record
+    await Otp.create({
+      sender_id: user._id,
+      receiver_id: user._id,
+      sender_type: 'User',
+      receiver_type: 'User',
+      otp: verification_code,
+      status: 'open',
+      section: 'signup',
+      section_id: 1
+    });
+
+    // In production, send SMS here
+    // For development, return OTP in response
+    res.status(200).json({
+      verification_code: verification_code,
+      is_verified: false,
+      message: 'OTP sent successfully for signup'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get OTP for login (existing users only)
+// @route   POST /api/getOtpForLogin
+// @access  Public
+exports.getOtpForLogin = async (req, res) => {
+  try {
+    const { phone_number } = req.body;
+
+    if (!phone_number) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required'
+      });
+    }
+
+    // Find existing user
+    const user = await User.findOne({ phone_number });
     if (!user) {
-      user = await User.create({ phone_number });
+      return res.status(404).json({
+        success: false,
+        message: 'Phone number not found. Please sign up first.'
+      });
+    }
+
+    // Check if user is blocked
+    if (user.is_block) {
+      return res.status(401).json({
+        success: false,
+        message: 'Your account has been blocked'
+      });
+    }
+
+    // Check if OTP already exists
+    let otpData = await Otp.findOne({
+      sender_id: user._id,
+      receiver_id: user._id,
+      section_id: 2 // login section
+    });
+
+    const verification_code = Math.floor(1000 + Math.random() * 9000);
+
+    if (!otpData) {
+      otpData = await Otp.create({
+        sender_id: user._id,
+        receiver_id: user._id,
+        sender_type: 'User',
+        receiver_type: 'User',
+        otp: verification_code,
+        status: 'open',
+        section: 'login',
+        section_id: 2
+      });
+    } else {
+      otpData.otp = verification_code;
+      await otpData.save();
+    }
+
+    // In production, send SMS here
+    // For development, return OTP in response
+    res.status(200).json({
+      verification_code: verification_code,
+      is_verified: user.is_verified,
+      message: 'OTP sent successfully for login'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get OTP for phone number update (protected - for authenticated users)
+// @route   POST /api/getOtp
+// @access  Private
+exports.getOtp = async (req, res) => {
+  try {
+    const { phone_number } = req.body;
+    const userId = req.user.id; // This requires authentication
+
+    if (!phone_number) {
+      return res.status(400).json({
+        success: false,
+        message: 'Phone number is required'
+      });
+    }
+
+    // Check if phone number is already taken by another user
+    const existingUser = await User.findOne({ 
+      phone_number, 
+      _id: { $ne: userId } 
+    });
+    
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'This phone number is already in use by another account'
+      });
+    }
+
+    // Get current user
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
     }
 
     // Check if OTP already exists
@@ -71,7 +216,7 @@ exports.getOtp = async (req, res) => {
 // @access  Public
 exports.verify = async (req, res) => {
   try {
-    const { phone_number, verification_code, device_token, device_type } = req.body;
+    const { phone_number, verification_code, device_token, device_type, section = 'signup' } = req.body;
 
     const user = await User.findOne({ phone_number });
     
@@ -83,10 +228,13 @@ exports.verify = async (req, res) => {
       });
     }
 
+    // Determine section_id based on section type
+    const section_id = section === 'login' ? 2 : 1;
+
     const otpData = await Otp.findOne({
       sender_id: user._id,
       receiver_id: user._id,
-      section_id: 1
+      section_id: section_id
     });
 
     if (!otpData || otpData.otp !== parseInt(verification_code)) {
@@ -120,6 +268,7 @@ exports.verify = async (req, res) => {
     res.status(200).json({
       message: 'User verified successfully',
       is_verified: user.email ? true : false,
+      is_profile_completed: user.is_profile_completed,
       token: token
     });
   } catch (error) {
@@ -216,17 +365,49 @@ exports.loginWithPassword = async (req, res) => {
 
 // @desc    Submit user details
 // @route   POST /api/submitUserDetail
-// @access  Private
+// @access  Public (but requires valid token from verify)
 exports.submitUserDetail = async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
-    const userId = req.user.id;
+    
+    // Extract token from header
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
 
+    if (!token) {
+      return res.status(401).json({
+        message: 'No token provided. Please verify your phone number first.',
+        success: false
+      });
+    }
+
+    // Verify token and get user ID
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({
+        message: 'Invalid or expired token. Please verify your phone number again.',
+        success: false
+      });
+    }
+
+    const userId = decoded.id;
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.status(401).json({
-        message: 'Unauthorized',
+      return res.status(404).json({
+        message: 'User not found',
+        success: false
+      });
+    }
+
+    // Check if user details are already completed (prevent overwriting)
+    if (user.email && user.password) {
+      return res.status(400).json({
+        message: 'User details have already been submitted',
         success: false
       });
     }
@@ -241,7 +422,8 @@ exports.submitUserDetail = async (req, res) => {
 
     res.status(200).json({
       message: 'User details updated successfully',
-      success: true
+      success: true,
+      is_profile_completed: user.is_profile_completed
     });
   } catch (error) {
     res.status(500).json({
@@ -492,6 +674,30 @@ exports.completeProfile = async (req, res) => {
       });
     }
 
+    // Geocode the address if lat/lng not provided
+    let finalLat = lat;
+    let finalLng = lng;
+    
+    if (!lat || !lng) {
+      console.log('Lat/Lng not provided, attempting to geocode address');
+      const geocodeResult = await geocodeAddress({
+        address,
+        address2,
+        city_id,
+        state_id,
+        country_id,
+        zip
+      });
+      
+      if (geocodeResult.lat && geocodeResult.lng) {
+        finalLat = geocodeResult.lat;
+        finalLng = geocodeResult.lng;
+        console.log(`Geocoding successful - Lat: ${finalLat}, Lng: ${finalLng}`);
+      } else {
+        console.log('Geocoding failed, using null values for lat/lng');
+      }
+    }
+
     // Create or update profile
     const profileData = {
       user_id: userId,
@@ -506,8 +712,8 @@ exports.completeProfile = async (req, res) => {
       radius: radius || '10',
       timeSlots: parsedTimeSlots || [],
       categories: categoryNames,
-      lat: lat || null,
-      lng: lng || null
+      lat: finalLat || null,
+      lng: finalLng || null
     };
 
     // Use upsert to create or update

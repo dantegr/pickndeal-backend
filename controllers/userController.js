@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 const { Country, State, City } = require('country-state-city');
 
 // @desc    Get countries
@@ -142,11 +143,20 @@ exports.getUserProfile = async (req, res) => {
       });
     }
 
-    // Mock profile data - in a real app you'd have separate models for addresses, categories etc
+    // Get user profile if it exists
+    const profile = await Profile.findOne({ user_id: userId });
+    
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        message: 'Profile not found'
+      });
+    }
+
     res.status(200).json({
       success: true,
-      profile: null, // No profile data initially
-      cats: [] // No categories initially
+      profile: profile,
+      user: user
     });
   } catch (error) {
     res.status(500).json({
