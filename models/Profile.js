@@ -37,10 +37,6 @@ const profileSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  radius: {
-    type: String,
-    default: '10'
-  },
   timeSlots: {
     type: [String], // Array of time slot strings
     required: true
@@ -54,6 +50,10 @@ const profileSchema = new mongoose.Schema({
   },
   lng: {
     type: Number
+  },
+  deliveryRadius: {
+    type: Number,
+    required: false
   }
 }, {
   timestamps: true

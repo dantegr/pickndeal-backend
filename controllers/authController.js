@@ -615,11 +615,11 @@ exports.completeProfile = async (req, res) => {
       city_id,
       zip,
       aboutme,
-      radius,
       timeSlots,
       cats,
       lat,
-      lng
+      lng,
+      deliveryRadius
     } = req.body;
 
     // Parse timeSlots if it's a string
@@ -709,12 +709,16 @@ exports.completeProfile = async (req, res) => {
       city_id: city_id || '',
       zip,
       aboutme,
-      radius: radius || '10',
       timeSlots: parsedTimeSlots || [],
       categories: categoryNames,
       lat: finalLat || null,
       lng: finalLng || null
     };
+
+    // Add deliveryRadius if provided (optional field)
+    if (deliveryRadius !== undefined && deliveryRadius !== null) {
+      profileData.deliveryRadius = deliveryRadius;
+    }
 
     // Use upsert to create or update
     const profile = await Profile.findOneAndUpdate(
