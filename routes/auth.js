@@ -11,6 +11,7 @@ const {
   getUserTypes,
   getUserDetails,
   resetPassword,
+  changePassword,
   updateGeneralProfileData,
   completeProfile,
   logout
@@ -31,6 +32,7 @@ router.post('/getOtp', getOtp); // Now protected - for phone number updates
 router.post('/submitUserRoles', submitUserRoles);
 router.get('/getUser', getUserDetails);
 router.post('/resetPassword', resetPassword);
+router.post('/change-password', changePassword);
 router.post('/updateGeneralProfileData', updateGeneralProfileData);
 router.post('/save/profile', completeProfile);
 router.post('/logout', logout);

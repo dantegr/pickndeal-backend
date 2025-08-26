@@ -750,6 +750,75 @@ exports.completeProfile = async (req, res) => {
   }
 };
 
+// @desc    Change password
+// @route   POST /api/change-password
+// @access  Private
+exports.changePassword = async (req, res) => {
+  try {
+    const { old_password, new_password, confirm_password } = req.body;
+    const userId = req.user.id;
+
+    // Validate input
+    if (!old_password || !new_password || !confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide all required fields'
+      });
+    }
+
+    // Check if new password and confirm password match
+    if (new_password !== confirm_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password and confirm password do not match'
+      });
+    }
+
+    // Get user with password field
+    const user = await User.findById(userId).select('+password');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Check if old password is correct
+    const isMatch = await user.matchPassword(old_password);
+    
+    if (!isMatch) {
+      return res.status(400).json({
+        success: false,
+        message: 'Old password is incorrect'
+      });
+    }
+
+    // Check if new password is same as old password
+    if (old_password === new_password) {
+      return res.status(400).json({
+        success: false,
+        message: 'New password must be different from old password'
+      });
+    }
+
+    // Update password
+    user.password = new_password;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Password changed successfully'
+    });
+  } catch (error) {
+    console.error('Password change error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'An error occurred while changing password. Please try again.'
+    });
+  }
+};
+
 // @desc    Logout user
 // @route   POST /api/logout
 // @access  Private
