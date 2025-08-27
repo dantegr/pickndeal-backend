@@ -1,0 +1,153 @@
+const User = require('../models/User');
+const Profile = require('../models/Profile');
+const { geocodeAddress } = require('../services/geocodingService');
+
+// @desc    Complete user profile
+// @route   POST /api/save/profile
+// @access  Private
+exports.completeProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const {
+      name,
+      address,
+      address2,
+      country_id,
+      state_id,
+      city_id,
+      zip,
+      aboutme,
+      timeSlots,
+      cats,
+      lat,
+      lng,
+      deliveryRadius
+    } = req.body;
+
+    // Parse timeSlots if it's a string
+    let parsedTimeSlots = timeSlots;
+    if (typeof timeSlots === 'string') {
+      try {
+        parsedTimeSlots = JSON.parse(timeSlots);
+      } catch (e) {
+        parsedTimeSlots = [];
+      }
+    }
+
+    // Convert category IDs to category names
+    // Get the user's role to determine which category list to use
+    const user = await User.findById(userId);
+    const userRole = user.role || 'retailer';
+    
+    let categoryNames = [];
+    if (cats && Array.isArray(cats)) {
+      // Define categories based on role (same as in getCategories)
+      let categoryList = [];
+      if (userRole === 'retailer') {
+        categoryList = [
+          { id: 1, name: 'Restaurant' },
+          { id: 2, name: 'Fast Food' },
+          { id: 3, name: 'Bar & Pub' },
+          { id: 4, name: 'Cafe & Coffee Shop' },
+          { id: 5, name: 'Bakery' },
+          { id: 6, name: 'Food Truck' },
+          { id: 7, name: 'Catering Service' },
+          { id: 8, name: 'Grocery Store' },
+          { id: 9, name: 'Other' }
+        ];
+      } else if (userRole === 'supplier') {
+        categoryList = [
+          { id: 1, name: 'Meat & Poultry Supplier' },
+          { id: 2, name: 'Vegetable & Fruit Producer' },
+          { id: 3, name: 'Dairy Products Supplier' },
+          { id: 4, name: 'Beverage Distributor' },
+          { id: 5, name: 'Bakery Ingredients Supplier' },
+          { id: 6, name: 'Seafood Supplier' },
+          { id: 7, name: 'Kitchen Equipment Supplier' },
+          { id: 8, name: 'Packaging & Disposables' },
+          { id: 9, name: 'Other' }
+        ];
+      }
+      
+      // Map IDs to names
+      categoryNames = cats.map(catId => {
+        const category = categoryList.find(cat => cat.id === parseInt(catId));
+        return category ? category.name : catId.toString();
+      });
+    }
+
+    // Geocode the address if lat/lng not provided
+    let finalLat = lat;
+    let finalLng = lng;
+    
+    if (!lat || !lng) {
+      console.log('Lat/Lng not provided, attempting to geocode address');
+      const geocodeResult = await geocodeAddress({
+        address,
+        address2,
+        city_id,
+        state_id,
+        country_id,
+        zip
+      });
+      
+      if (geocodeResult.lat && geocodeResult.lng) {
+        finalLat = geocodeResult.lat;
+        finalLng = geocodeResult.lng;
+        console.log(`Geocoding successful - Lat: ${finalLat}, Lng: ${finalLng}`);
+      } else {
+        console.log('Geocoding failed, using null values for lat/lng');
+      }
+    }
+
+    // Create or update profile
+    const profileData = {
+      user_id: userId,
+      name: name || req.user.name,
+      address,
+      address2: address2 || '',
+      country_id,
+      state_id,
+      city_id: city_id || '',
+      zip,
+      aboutme,
+      timeSlots: parsedTimeSlots || [],
+      categories: categoryNames,
+      lat: finalLat || null,
+      lng: finalLng || null
+    };
+
+    // Add deliveryRadius if provided (optional field)
+    if (deliveryRadius !== undefined && deliveryRadius !== null) {
+      profileData.deliveryRadius = deliveryRadius;
+    }
+
+    // Use upsert to create or update
+    const profile = await Profile.findOneAndUpdate(
+      { user_id: userId },
+      profileData,
+      { 
+        new: true, 
+        upsert: true,
+        runValidators: true 
+      }
+    );
+
+    // Update user to mark profile as completed
+    await User.findByIdAndUpdate(userId, {
+      name: name || req.user.name,
+      is_profile_completed: 1
+    });
+
+    res.status(200).json({
+      type: 'success',
+      message: 'Profile completed successfully',
+      to: '/dashboard'
+    });
+  } catch (error) {
+    res.status(500).json({
+      type: 'error',
+      message: error.message
+    });
+  }
+};

@@ -1,5 +1,8 @@
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const UserRole = require('../models/UserRole');
+const UserType = require('../models/UserType');
+const jwt = require('jsonwebtoken');
 const { Country, State, City } = require('country-state-city');
 
 // @desc    Get countries
@@ -119,6 +122,210 @@ exports.getCategories = async (req, res) => {
     }
 
     res.status(200).json(categories);
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Update general user data
+// @route   POST /api/updateGeneralUserData
+// @access  Private
+exports.updateGeneralUserData = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, email } = req.body;
+
+    const updateData = {};
+    if (name) updateData.name = name;
+    if (email) updateData.email = email;
+
+    // Handle image upload if needed
+    if (req.file) {
+      updateData.image = req.file.filename;
+    }
+
+    const user = await User.findByIdAndUpdate(userId, updateData, {
+      new: true,
+      runValidators: true
+    });
+
+    res.status(200).json({
+      message: 'Profile updated successfully'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Submit user details
+// @route   POST /api/submitUserDetail
+// @access  Public (but requires valid token from verify)
+exports.submitUserDetail = async (req, res) => {
+  try {
+    const { name, email, password, role } = req.body;
+    
+    // Extract token from header
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    }
+
+    if (!token) {
+      return res.status(401).json({
+        message: 'No token provided. Please verify your phone number first.',
+        success: false
+      });
+    }
+
+    // Verify token and get user ID
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
+    } catch (error) {
+      return res.status(401).json({
+        message: 'Invalid or expired token. Please verify your phone number again.',
+        success: false
+      });
+    }
+
+    const userId = decoded.id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return res.status(404).json({
+        message: 'User not found',
+        success: false
+      });
+    }
+
+    // Check if user details are already completed (prevent overwriting)
+    if (user.email && user.password) {
+      return res.status(400).json({
+        message: 'User details have already been submitted',
+        success: false
+      });
+    }
+
+    // Update user details
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (password) user.password = password; // Will be hashed by pre-save hook
+    if (role) user.role = role;
+
+    await user.save();
+
+    res.status(200).json({
+      message: 'User details updated successfully',
+      success: true,
+      is_profile_completed: user.is_profile_completed
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Submit user roles
+// @route   POST /api/submitUserRoles
+// @access  Private
+exports.submitUserRoles = async (req, res) => {
+  try {
+    const { user_roles } = req.body;
+    const userId = req.user.id;
+
+    if (user_roles && user_roles.length > 0) {
+      for (const role of user_roles) {
+        const existingRole = await UserRole.findOne({
+          user_id: userId,
+          user_type_id: role.id
+        });
+
+        if (!existingRole) {
+          await UserRole.create({
+            user_id: userId,
+            user_type_id: role.id
+          });
+        }
+      }
+    } else {
+      // If no roles provided, assign Customer role (you'll need to find the Customer UserType ID)
+      const customerType = await UserType.findOne({ title: 'Customer' });
+      if (customerType) {
+        const existingRole = await UserRole.findOne({
+          user_id: userId,
+          user_type_id: customerType._id
+        });
+
+        if (!existingRole) {
+          await UserRole.create({
+            user_id: userId,
+            user_type_id: customerType._id
+          });
+        }
+      }
+    }
+
+    // Get user roles
+    const userRoles = await UserRole.find({ user_id: userId })
+      .populate('user_type_id', 'title');
+
+    res.status(200).json({
+      success: true,
+      data: userRoles
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get user types
+// @route   GET /api/getUserTypes
+// @access  Public
+exports.getUserTypes = async (req, res) => {
+  try {
+    const userTypes = await UserType.find({ title: { $ne: 'Customer' } });
+    
+    res.status(200).json({
+      success: true,
+      data: userTypes
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Get user details
+// @route   GET /api/getUser
+// @access  Private
+exports.getUserDetails = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    const user = await User.findById(userId).select('-password');
+    const userRoles = await UserRole.find({ user_id: userId })
+      .populate('user_type_id', 'title');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user,
+        roles: userRoles
+      }
+    });
   } catch (error) {
     res.status(500).json({
       success: false,

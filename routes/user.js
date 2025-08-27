@@ -6,8 +6,22 @@ const {
   getStates,
   getCities,
   getCategories,
-  getUserProfile
+  getUserProfile,
+  updateGeneralUserData,
+  getUserDetails,
+  submitUserDetail,
+  submitUserRoles,
+  getUserTypes
 } = require('../controllers/userController');
+
+// Public routes (no authentication required)
+router.post('/submitUserDetail', submitUserDetail); // Requires token from verify
+router.get('/getUserTypes', getUserTypes);
+
+// Protected routes that require authentication
+router.post('/submitUserRoles', protect, submitUserRoles);
+router.get('/getUser', protect, getUserDetails);
+router.post('/updateGeneralUserData', protect, updateGeneralUserData);
 
 // Placeholder endpoints for user-related operations
 router.post('/submitUserCompanyProfile', protect, (req, res) => {

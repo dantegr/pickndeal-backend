@@ -6,14 +6,8 @@ const {
   getOtpForLogin,
   verify,
   loginWithPassword,
-  submitUserDetail,
-  submitUserRoles,
-  getUserTypes,
-  getUserDetails,
   resetPassword,
   changePassword,
-  updateGeneralProfileData,
-  completeProfile,
   logout
 } = require('../controllers/authController');
 const { protect } = require('../middleware/auth');
@@ -22,19 +16,12 @@ const { protect } = require('../middleware/auth');
 router.post('/getOtpForSignup', getOtpForSignup); // New endpoint for signup
 router.post('/getOtpForLogin', getOtpForLogin);   // New endpoint for login with OTP
 router.post('/verify', verify);
-router.post('/submitUserDetail', submitUserDetail); // Public but requires token from verify
 router.post('/loginWithPassword', loginWithPassword);
-router.get('/getUserTypes', getUserTypes);
 
-// Protected routes
-router.use(protect); // All routes below this will require authentication
-router.post('/getOtp', getOtp); // Now protected - for phone number updates
-router.post('/submitUserRoles', submitUserRoles);
-router.get('/getUser', getUserDetails);
-router.post('/resetPassword', resetPassword);
-router.post('/change-password', changePassword);
-router.post('/updateGeneralProfileData', updateGeneralProfileData);
-router.post('/save/profile', completeProfile);
-router.post('/logout', logout);
+// Protected routes - apply protect middleware to each route individually
+router.post('/getOtp', protect, getOtp); // Now protected - for phone number updates
+router.post('/resetPassword', protect, resetPassword);
+router.post('/change-password', protect, changePassword);
+router.post('/logout', protect, logout);
 
 module.exports = router;
