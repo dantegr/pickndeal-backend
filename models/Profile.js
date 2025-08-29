@@ -54,6 +54,10 @@ const profileSchema = new mongoose.Schema({
   deliveryRadius: {
     type: Number,
     required: false
+  },
+  avatarImage: {
+    type: String,
+    default: null
   }
 }, {
   timestamps: true

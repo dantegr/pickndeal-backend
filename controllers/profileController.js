@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Profile = require('../models/Profile');
 const { geocodeAddress } = require('../services/geocodingService');
+const imageUploadService = require('../services/imageUploadService');
 
 // @desc    Complete user profile
 // @route   POST /api/save/profile
@@ -307,6 +308,142 @@ exports.updateProfile = async (req, res) => {
     res.status(500).json({
       type: 'error',
       message: error.message
+    });
+  }
+};
+
+// @desc    Upload avatar image for user profile
+// @route   POST /api/profile/avatar
+// @access  Private
+exports.uploadAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Check if file was uploaded
+    if (!req.file) {
+      return res.status(400).json({
+        type: 'error',
+        message: 'No image file provided'
+      });
+    }
+    
+    // Find the profile first to ensure it exists
+    const existingProfile = await Profile.findOne({ user_id: userId });
+    
+    if (!existingProfile) {
+      return res.status(404).json({
+        type: 'error',
+        message: 'Profile not found. Please complete your profile first.'
+      });
+    }
+    
+    // Upload image using the image upload service
+    const uploadResult = await imageUploadService.uploadImage(req.file);
+    
+    if (!uploadResult.success) {
+      return res.status(500).json({
+        type: 'error',
+        message: 'Failed to upload image'
+      });
+    }
+    
+    // Delete old avatar from Cloudinary if it exists
+    if (existingProfile.avatarImage) {
+      try {
+        // Extract public ID from the existing avatar URL
+        const urlParts = existingProfile.avatarImage.split('/');
+        const publicIdWithExtension = urlParts[urlParts.length - 1];
+        const publicId = 'pickndeal/' + publicIdWithExtension.split('.')[0];
+        
+        await imageUploadService.deleteImage(publicId);
+      } catch (deleteError) {
+        console.error('Error deleting old avatar:', deleteError);
+        // Continue even if deletion fails
+      }
+    }
+    
+    // Update profile with new avatar URL
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { user_id: userId },
+      { $set: { avatarImage: uploadResult.url } },
+      { 
+        new: true,
+        runValidators: true 
+      }
+    );
+    
+    res.status(200).json({
+      type: 'success',
+      message: 'Avatar uploaded successfully',
+      data: {
+        avatarUrl: uploadResult.url,
+        profile: updatedProfile
+      }
+    });
+  } catch (error) {
+    console.error('Avatar upload error:', error);
+    res.status(500).json({
+      type: 'error',
+      message: error.message || 'Failed to upload avatar'
+    });
+  }
+};
+
+// @desc    Delete avatar image for user profile
+// @route   DELETE /api/profile/avatar
+// @access  Private
+exports.deleteAvatar = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // Find the profile
+    const profile = await Profile.findOne({ user_id: userId });
+    
+    if (!profile) {
+      return res.status(404).json({
+        type: 'error',
+        message: 'Profile not found'
+      });
+    }
+    
+    if (!profile.avatarImage) {
+      return res.status(400).json({
+        type: 'error',
+        message: 'No avatar to delete'
+      });
+    }
+    
+    // Delete from Cloudinary
+    try {
+      const urlParts = profile.avatarImage.split('/');
+      const publicIdWithExtension = urlParts[urlParts.length - 1];
+      const publicId = 'pickndeal/' + publicIdWithExtension.split('.')[0];
+      
+      await imageUploadService.deleteImage(publicId);
+    } catch (deleteError) {
+      console.error('Error deleting avatar from Cloudinary:', deleteError);
+    }
+    
+    // Update profile to remove avatar
+    const updatedProfile = await Profile.findOneAndUpdate(
+      { user_id: userId },
+      { $set: { avatarImage: null } },
+      { 
+        new: true,
+        runValidators: true 
+      }
+    );
+    
+    res.status(200).json({
+      type: 'success',
+      message: 'Avatar deleted successfully',
+      data: updatedProfile
+    });
+  } catch (error) {
+    console.error('Avatar deletion error:', error);
+    res.status(500).json({
+      type: 'error',
+      message: error.message || 'Failed to delete avatar'
     });
   }
 };
