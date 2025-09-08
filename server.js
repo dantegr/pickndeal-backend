@@ -1,8 +1,10 @@
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const { createServer } = require('http');
 const connectDB = require('./config/database');
 const errorHandler = require('./middleware/error');
+const socketManager = require('./socket/socketManager');
 
 // Load env vars
 dotenv.config();
@@ -12,6 +14,9 @@ connectDB();
 
 // Initialize express app
 const app = express();
+
+// Create HTTP server
+const httpServer = createServer(app);
 
 // Body parser middleware
 app.use(express.json());
@@ -49,13 +54,18 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 3001;
 
-const server = app.listen(PORT, () => {
+// Initialize Socket.io with the HTTP server
+socketManager.initialize(httpServer);
+
+// Start the server
+httpServer.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  console.log(`Socket.io server is ready for connections`);
 });
 
 // Handle unhandled promise rejections
 process.on('unhandledRejection', (err, promise) => {
   console.log(`Error: ${err.message}`);
   // Close server & exit process
-  server.close(() => process.exit(1));
+  httpServer.close(() => process.exit(1));
 });

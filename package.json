@@ -24,7 +24,8 @@
     "mongoose": "^8.17.1",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
-    "node-geocoder": "^4.4.1"
+    "node-geocoder": "^4.4.1",
+    "socket.io": "^4.8.1"
   },
   "devDependencies": {
     "axios": "^1.11.0",

@@ -9,6 +9,7 @@ const serviceRoutes = require('./service');
 const orderRoutes = require('./order');
 const userRoutes = require('./user');
 const profileRoutes = require('./profile');
+const chatRoutes = require('./chat');
 
 // Mount routes
 router.use('/', authRoutes); // Auth routes at root level
@@ -18,5 +19,6 @@ router.use('/service', serviceRoutes);
 router.use('/order', orderRoutes);
 router.use('/user', userRoutes);
 router.use('/profile', profileRoutes);
+router.use('/chat', chatRoutes);
 
 module.exports = router;
