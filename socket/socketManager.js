@@ -1,6 +1,6 @@
 const socketIO = require('socket.io');
-const Message = require('../models/Message');
 const Chat = require('../models/Chat');
+const User = require('../models/User');
 
 class SocketManager {
   constructor() {
@@ -32,27 +32,30 @@ class SocketManager {
         const { message, receiverId, senderId } = data;
         
         try {
-          // Save message to database
-          const newMessage = await Message.create({
+          // Find or create chat and add message to it
+          const chat = await Chat.findOrCreateChat(senderId, receiverId);
+          
+          // Add message to chat
+          const newMessage = await chat.addMessage({
             sender: senderId,
             receiver: receiverId,
             textContent: message.textContent,
             dateSent: new Date()
           });
 
-          // Find or create chat and add message to it
-          const chat = await Chat.findOrCreateChat(senderId, receiverId);
-          await chat.addMessage(newMessage._id);
-
-          // Populate sender info for the response
-          await newMessage.populate('sender', 'name email image');
+          // Get sender info for the response
+          const sender = await User.findById(senderId).select('name email image');
+          const messageWithSender = {
+            ...newMessage,
+            sender
+          };
 
           // Emit to the specific receiver if they're online
           const receiverSocketId = this.users.get(receiverId);
           if (receiverSocketId) {
             this.io.to(receiverSocketId).emit('new_message', {
               chatId: chat._id,
-              message: newMessage,
+              message: messageWithSender,
               senderId,
               timestamp: newMessage.dateSent
             });
@@ -61,7 +64,7 @@ class SocketManager {
           // Also emit back to sender with the saved message
           socket.emit('message_sent', {
             chatId: chat._id,
-            message: newMessage,
+            message: messageWithSender,
             tempId: data.tempId // Include tempId to match with frontend temp message
           });
 

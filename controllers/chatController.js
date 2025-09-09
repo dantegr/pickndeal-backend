@@ -1,5 +1,4 @@
 const Chat = require('../models/Chat');
-const Message = require('../models/Message');
 const User = require('../models/User');
 
 // Get chat history between two users
@@ -11,29 +10,50 @@ exports.getChatHistory = async (req, res) => {
     // Find or create chat between the two users
     let chat = await Chat.findOrCreateChat(senderId, receiverId);
     
-    // Populate messages
-    await chat.populate({
-      path: 'messages',
-      options: { 
-        sort: { dateSent: 1 },
-        limit: 100 // Limit to last 100 messages
-      }
-    });
-
     // Mark messages as read
-    await Message.updateMany(
-      {
-        _id: { $in: chat.messages.map(m => m._id) },
-        receiver: senderId,
-        isRead: false
-      },
-      { isRead: true }
-    );
+    await chat.markMessagesAsRead(senderId);
+
+    // Get last 100 messages (most recent) and ensure sender/receiver are populated
+    let messages = [];
+    if (chat.messages && chat.messages.length > 0) {
+      // Populate the chat with user information
+      await chat.populate([
+        { path: 'messages.sender', select: 'name email image' },
+        { path: 'messages.receiver', select: 'name email image' }
+      ]);
+      
+      messages = chat.messages.slice(-100);
+      
+      // Ensure each message maintains its structure
+      messages = messages.map(msg => {
+        // If populate worked, sender/receiver will be objects; if not, they'll be ObjectIds
+        const messageObj = {
+          _id: msg._id,
+          sender: msg.sender,
+          receiver: msg.receiver,
+          textContent: msg.textContent,
+          dateSent: msg.dateSent,
+          isRead: msg.isRead,
+          createdAt: msg.createdAt,
+          updatedAt: msg.updatedAt
+        };
+        
+        return messageObj;
+      });
+    }
 
     res.status(200).json({
       success: true,
-      chat,
-      messages: chat.messages
+      data: {
+        chatId: chat._id,
+        chat: {
+          _id: chat._id,
+          userIds: chat.userIds,
+          lastActivity: chat.lastActivity,
+          createdAt: chat.createdAt
+        },
+        messages
+      }
     });
   } catch (error) {
     console.error('Error fetching chat history:', error);
@@ -54,10 +74,16 @@ exports.getUserChats = async (req, res) => {
       userIds: userId
     })
     .populate('userIds', 'name email image')
-    .populate('lastMessage')
     .sort({ lastActivity: -1 });
+    
+    // Populate lastMessage fields only if it exists
+    for (let chat of chats) {
+      if (chat.lastMessage && chat.lastMessage.sender) {
+        await chat.populate('lastMessage.sender lastMessage.receiver', 'name email image');
+      }
+    }
 
-    // Format chats to include the other user's info
+    // Format chats to include the other user's info and unread count
     const formattedChats = chats.map(chat => {
       const otherUser = chat.userIds.find(user => user._id.toString() !== userId);
       return {
@@ -65,6 +91,7 @@ exports.getUserChats = async (req, res) => {
         otherUser,
         lastMessage: chat.lastMessage,
         lastActivity: chat.lastActivity,
+        unreadCount: chat.getUnreadCount(userId),
         createdAt: chat.createdAt
       };
     });
@@ -103,18 +130,12 @@ exports.markMessagesAsRead = async (req, res) => {
     }
 
     // Mark all messages in this chat as read where current user is receiver
-    await Message.updateMany(
-      {
-        _id: { $in: chat.messages },
-        receiver: userId,
-        isRead: false
-      },
-      { isRead: true }
-    );
+    const hasChanges = await chat.markMessagesAsRead(userId);
 
     res.status(200).json({
       success: true,
-      message: 'Messages marked as read'
+      message: 'Messages marked as read',
+      updated: hasChanges
     });
   } catch (error) {
     console.error('Error marking messages as read:', error);
@@ -131,10 +152,7 @@ exports.getUnreadCount = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const count = await Message.countDocuments({
-      receiver: userId,
-      isRead: false
-    });
+    const count = await Chat.getUnreadCountForUser(userId);
 
     res.status(200).json({
       success: true,
