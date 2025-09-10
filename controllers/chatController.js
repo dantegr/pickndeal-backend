@@ -1,5 +1,6 @@
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 
 // Get chat history between two users
 exports.getChatHistory = async (req, res) => {
@@ -84,17 +85,44 @@ exports.getUserChats = async (req, res) => {
     }
 
     // Format chats to include the other user's info and unread count
-    const formattedChats = chats.map(chat => {
+    const formattedChats = await Promise.all(chats.map(async (chat) => {
       const otherUser = chat.userIds.find(user => user._id.toString() !== userId);
+      
+      // Get the profile for the other user to get avatarImage
+      let otherUserWithProfile = null;
+      if (otherUser) {
+        const profile = await Profile.findOne({ user_id: otherUser._id });
+        otherUserWithProfile = {
+          _id: otherUser._id,
+          name: otherUser.name,
+          email: otherUser.email,
+          image: otherUser.image,
+          avatarImage: profile?.avatarImage || null
+        };
+      }
+      
+      // Also enhance lastMessage sender/receiver with profile images
+      let enhancedLastMessage = chat.lastMessage;
+      if (enhancedLastMessage) {
+        if (enhancedLastMessage.sender) {
+          const senderProfile = await Profile.findOne({ user_id: enhancedLastMessage.sender._id });
+          enhancedLastMessage.sender.avatarImage = senderProfile?.avatarImage || null;
+        }
+        if (enhancedLastMessage.receiver) {
+          const receiverProfile = await Profile.findOne({ user_id: enhancedLastMessage.receiver._id });
+          enhancedLastMessage.receiver.avatarImage = receiverProfile?.avatarImage || null;
+        }
+      }
+      
       return {
         _id: chat._id,
-        otherUser,
-        lastMessage: chat.lastMessage,
+        otherUser: otherUserWithProfile,
+        lastMessage: enhancedLastMessage,
         lastActivity: chat.lastActivity,
         unreadCount: chat.getUnreadCount(userId),
         createdAt: chat.createdAt
       };
-    });
+    }));
 
     res.status(200).json({
       success: true,

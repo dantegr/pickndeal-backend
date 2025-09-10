@@ -26,6 +26,14 @@ class SocketManager {
   setupEventHandlers() {
     this.io.on('connection', (socket) => {
       console.log(`New client connected: ${socket.id}`);
+      
+      // Register user when they connect
+      const userId = socket.handshake.auth?.userId;
+      if (userId) {
+        socket.userId = userId;
+        this.registerUser(userId, socket.id);
+        console.log(`User ${userId} registered with socket ${socket.id}`);
+      }
 
       // Handle sending messages (1-on-1 direct messaging)
       socket.on('send_message', async (data) => {
@@ -52,13 +60,19 @@ class SocketManager {
 
           // Emit to the specific receiver if they're online
           const receiverSocketId = this.users.get(receiverId);
+          console.log(`Looking for receiver ${receiverId}, found socket: ${receiverSocketId}`);
+          console.log('Current users map:', Array.from(this.users.entries()));
+          
           if (receiverSocketId) {
+            console.log(`Emitting new_message to receiver ${receiverId} on socket ${receiverSocketId}`);
             this.io.to(receiverSocketId).emit('new_message', {
               chatId: chat._id,
               message: messageWithSender,
               senderId,
               timestamp: newMessage.dateSent
             });
+          } else {
+            console.log(`Receiver ${receiverId} is not online`);
           }
 
           // Also emit back to sender with the saved message
@@ -127,14 +141,19 @@ class SocketManager {
 
   // This method can be called from authenticated routes when needed
   registerUser(userId, socketId) {
+    // Store the user-socket mapping
     this.users.set(userId, socketId);
+    console.log(`Registered user ${userId} with socket ${socketId}`);
+    console.log('Current online users:', Array.from(this.users.keys()));
     
-    // Notify others that user is online
-    this.io.emit('user_status', {
-      userId,
-      status: 'online',
-      timestamp: new Date()
-    });
+    // Notify others that user is online (only if io is initialized)
+    if (this.io) {
+      this.io.emit('user_status', {
+        userId,
+        status: 'online',
+        timestamp: new Date()
+      });
+    }
   }
 
   getUserSocket(userId) {

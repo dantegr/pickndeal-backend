@@ -372,3 +372,54 @@ exports.getUserProfile = async (req, res) => {
     });
   }
 };
+
+// @desc    Get all suppliers with completed profiles
+// @route   GET /api/user/suppliers
+// @access  Protected
+exports.getSuppliers = async (req, res) => {
+  try {
+    // Find all suppliers with completed profiles using the role field directly
+    const suppliers = await User.find({
+      role: 'supplier',
+      is_profile_completed: 1
+    })
+    .select('name email is_profile_completed image');
+
+    // Format the response to match frontend expectations
+    const formattedSuppliers = await Promise.all(suppliers.map(async (supplier) => {
+      // Get the profile for this user using user_id field
+      const profile = await Profile.findOne({ user_id: supplier._id });
+      
+      return {
+        id: supplier._id,
+        _id: supplier._id,
+        name: supplier.name,
+        email: supplier.email,
+        businessType: profile?.businessType || 'Supplier',
+        categories: profile?.categories || [],
+        deliveryRadius: profile?.deliveryRadius || 50,
+        lat: profile?.lat || 0,
+        lng: profile?.lng || 0,
+        address: profile?.address || '',
+        rating: profile?.rating || 0,
+        image: supplier.image || profile?.avatarImage || null,
+        avatarColor: profile?.avatarColor || '#2e42e2',
+        phone: profile?.phone || '',
+        city: profile?.city_id || '',
+        state: profile?.state_id || '',
+        country: profile?.country_id || ''
+      };
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: formattedSuppliers
+    });
+  } catch (error) {
+    console.error('Error fetching suppliers:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};

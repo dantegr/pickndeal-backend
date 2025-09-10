@@ -11,7 +11,8 @@ const {
   getUserDetails,
   submitUserDetail,
   submitUserRoles,
-  getUserTypes
+  getUserTypes,
+  getSuppliers
 } = require('../controllers/userController');
 
 // Public routes (no authentication required)
@@ -80,6 +81,7 @@ router.get('/categories', protect, getCategories);
 
 // Protected routes
 router.get('/profile', protect, getUserProfile);
+router.get('/suppliers', protect, getSuppliers);
 
 router.get('/getMultipleCities', protect, (req, res) => {
   res.json({ message: 'Get multiple cities - To be implemented' });
