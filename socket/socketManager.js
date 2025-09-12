@@ -1,6 +1,7 @@
 const socketIO = require('socket.io');
 const Chat = require('../models/Chat');
 const User = require('../models/User');
+const { createNotificationHelper } = require('../controllers/notificationController');
 
 class SocketManager {
   constructor() {
@@ -57,6 +58,34 @@ class SocketManager {
             ...newMessage,
             sender
           };
+
+          // Create notification for the receiver using the controller helper
+          try {
+            const notification = await createNotificationHelper(
+              receiverId,
+              'chat',
+              {
+                senderId: senderId,
+                senderName: sender.name || sender.email || 'Unknown User',
+                message: message.textContent
+              }
+            );
+            console.log(`Notification created for user ${receiverId} from ${sender.name || sender.email}`);
+            
+            // Check if receiver is connected and emit notification event
+            const receiverSocketId = this.users.get(receiverId);
+            if (receiverSocketId) {
+              this.io.to(receiverSocketId).emit('notification_created', {
+                notification,
+                senderId,
+                timestamp: new Date()
+              });
+              console.log(`Notification event emitted to user ${receiverId} on socket ${receiverSocketId}`);
+            }
+          } catch (notificationError) {
+            console.error('Error creating notification:', notificationError);
+            // Don't fail the message send if notification creation fails
+          }
 
           // Emit to the specific receiver if they're online
           const receiverSocketId = this.users.get(receiverId);
