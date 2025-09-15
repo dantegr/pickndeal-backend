@@ -5,6 +5,8 @@ const router = express.Router();
 const authRoutes = require('./auth');
 const categoryRoutes = require('./category');
 const productRoutes = require('./product');
+const productCategoryRoutes = require('./productCategory');
+const requirementRoutes = require('./requirement');
 const serviceRoutes = require('./service');
 const orderRoutes = require('./order');
 const userRoutes = require('./user');
@@ -16,6 +18,8 @@ const notificationRoutes = require('./notification');
 router.use('/', authRoutes); // Auth routes at root level
 router.use('/category', categoryRoutes);
 router.use('/product', productRoutes);
+router.use('/productCategory', productCategoryRoutes);
+router.use('/requirement', requirementRoutes);
 router.use('/service', serviceRoutes);
 router.use('/order', orderRoutes);
 router.use('/user', userRoutes);
