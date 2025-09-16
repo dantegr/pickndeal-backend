@@ -28,11 +28,28 @@ const requirementSchema = new mongoose.Schema({
     type: String,
     trim: true
   }],
-  quantity: {
-    type: Number,
-    required: [true, 'Please provide quantity'],
-    min: [0, 'Quantity must be a positive number']
-  },
+  products: [{
+    name: {
+      type: String,
+      required: [true, 'Please provide product name'],
+      trim: true
+    },
+    productId: {
+      type: String,
+      required: [true, 'Please provide product ID'],
+      trim: true
+    },
+    unit_of_measurement: {
+      type: String,
+      required: [true, 'Please provide unit of measurement'],
+      trim: true
+    },
+    quantity: {
+      type: Number,
+      required: [true, 'Please provide quantity'],
+      min: [0, 'Quantity must be a positive number']
+    }
+  }],
   recurring: {
     type: Boolean,
     default: false

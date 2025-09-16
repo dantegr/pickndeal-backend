@@ -1,5 +1,6 @@
 const Requirement = require('../models/Requirement');
 const User = require('../models/User');
+const Product = require('../models/Product');
 
 // @desc    Create new requirement
 // @route   POST /api/requirement/create
@@ -10,7 +11,7 @@ exports.createRequirement = async (req, res) => {
       title,
       description,
       categories,
-      quantity,
+      products,
       recurring,
       location,
       deliveryDate,
@@ -18,19 +19,37 @@ exports.createRequirement = async (req, res) => {
     } = req.body;
 
     // Validate required fields
-    if (!title || !description || !location || !deliveryDate || !budget || quantity === undefined) {
+    if (!title || !description || !location || !deliveryDate || !budget || !products || products.length === 0) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide all required fields'
+        message: 'Please provide all required fields including at least one product'
       });
     }
 
-    // Validate quantity is a positive number
-    if (quantity < 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'Quantity must be a positive number'
-      });
+    // Validate products array
+    for (const product of products) {
+      if (!product.name || !product.productId || !product.unit_of_measurement || product.quantity === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'Each product must have name, productId, unit_of_measurement, and quantity'
+        });
+      }
+      if (product.quantity < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Product quantity must be a positive number'
+        });
+      }
+
+      // Verify product exists in database (productId is UUID)
+      const productExists = await Product.findOne({ uuid: product.productId });
+
+      if (!productExists) {
+        return res.status(400).json({
+          success: false,
+          message: `Product with ID ${product.productId} does not exist`
+        });
+      }
     }
 
     // Get user details for postedByName
@@ -41,7 +60,7 @@ exports.createRequirement = async (req, res) => {
       title,
       description,
       categories: categories || [],
-      quantity,
+      products,
       recurring: recurring || false,
       location,
       deliveryDate,
@@ -100,12 +119,46 @@ exports.updateRequirement = async (req, res) => {
       'description',
       'state',
       'categories',
-      'quantity',
+      'products',
       'recurring',
       'location',
       'deliveryDate',
       'budget'
     ];
+
+    // Validate products if being updated
+    if (updates.products) {
+      if (!Array.isArray(updates.products) || updates.products.length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Products must be a non-empty array'
+        });
+      }
+      for (const product of updates.products) {
+        if (!product.name || !product.productId || !product.unit_of_measurement || product.quantity === undefined) {
+          return res.status(400).json({
+            success: false,
+            message: 'Each product must have name, productId, unit_of_measurement, and quantity'
+          });
+        }
+        if (product.quantity < 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Product quantity must be a positive number'
+          });
+        }
+
+        // Verify product exists in database (productId is UUID)
+        const productExists = await Product.findOne({ uuid: product.productId });
+
+        if (!productExists) {
+          return res.status(400).json({
+            success: false,
+            message: `Product with ID ${product.productId} does not exist`
+          });
+        }
+      }
+    }
 
     allowedUpdates.forEach(field => {
       if (updates[field] !== undefined) {
