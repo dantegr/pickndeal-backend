@@ -78,6 +78,10 @@ const requirementSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  postedByImage: {
+    type: String,
+    trim: true
+  },
   quotesCount: {
     type: Number,
     default: 0

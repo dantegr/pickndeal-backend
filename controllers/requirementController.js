@@ -15,7 +15,8 @@ exports.createRequirement = async (req, res) => {
       recurring,
       location,
       deliveryDate,
-      budget
+      budget,
+      postedByImage
     } = req.body;
 
     // Validate required fields
@@ -54,9 +55,9 @@ exports.createRequirement = async (req, res) => {
 
     // Get user details for postedByName
     const user = await User.findById(req.user.id);
-    
-    // Create new requirement
-    const requirement = await Requirement.create({
+
+    // Build requirement object
+    const requirementData = {
       title,
       description,
       categories: categories || [],
@@ -68,7 +69,15 @@ exports.createRequirement = async (req, res) => {
       postedBy: req.user.id,
       postedByName: user.name || 'Unknown User',
       state: 'CREATED'
-    });
+    };
+
+    // Only add postedByImage if it's provided
+    if (postedByImage) {
+      requirementData.postedByImage = postedByImage;
+    }
+
+    // Create new requirement
+    const requirement = await Requirement.create(requirementData);
 
     res.status(201).json({
       success: true,
@@ -123,7 +132,8 @@ exports.updateRequirement = async (req, res) => {
       'recurring',
       'location',
       'deliveryDate',
-      'budget'
+      'budget',
+      'postedByImage'
     ];
 
     // Validate products if being updated
@@ -342,13 +352,8 @@ exports.updateRequirementState = async (req, res) => {
       });
     }
 
-    // Find requirement by UUID or MongoDB ID
-    let requirement = await Requirement.findOne({
-      $or: [
-        { _id: id },
-        { uuid: id }
-      ]
-    });
+    // Find requirement by UUID
+    let requirement = await Requirement.findOne({ uuid: id });
 
     if (!requirement) {
       return res.status(404).json({
