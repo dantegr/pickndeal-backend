@@ -85,7 +85,11 @@ const requirementSchema = new mongoose.Schema({
   quotesCount: {
     type: Number,
     default: 0
-  }
+  },
+  quotedUsers: [{
+    type: String,
+    trim: true
+  }]
 }, {
   timestamps: true
 });
