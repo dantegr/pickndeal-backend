@@ -1,6 +1,7 @@
 const Quote = require('../models/Quote');
 const Requirement = require('../models/Requirement');
 const User = require('../models/User');
+const Profile = require('../models/Profile');
 
 // @desc    Create new quote
 // @route   POST /api/quotes/create
@@ -316,10 +317,30 @@ exports.getQuotesByRequirementId = async (req, res) => {
     // Find all quotes for the requirement
     const quotes = await Quote.find({ requirementId }).sort({ createdAt: -1 });
 
+    // Hydrate quotes with user and profile data
+    const hydratedQuotes = await Promise.all(
+      quotes.map(async (quote) => {
+        const quoteObj = quote.toObject();
+
+        // Fetch user data
+        const user = await User.findById(quote.quoterId).select('name email');
+
+        // Fetch profile data
+        const profile = await Profile.findOne({ user_id: quote.quoterId }).select('avatarImage name');
+
+        // Add quoter information
+        quoteObj.quoterName = user?.name || profile?.name || 'Unknown';
+        quoteObj.quoterEmail = user?.email;
+        quoteObj.avatarImage = profile?.avatarImage || null;
+
+        return quoteObj;
+      })
+    );
+
     res.json({
       success: true,
-      count: quotes.length,
-      data: quotes
+      count: hydratedQuotes.length,
+      data: hydratedQuotes
     });
   } catch (error) {
     res.status(500).json({

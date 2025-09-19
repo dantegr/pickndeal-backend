@@ -287,13 +287,10 @@ exports.getRequirement = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find requirement by UUID or MongoDB ID
-    const requirement = await Requirement.findOne({
-      $or: [
-        { _id: id },
-        { uuid: id }
-      ]
-    }).populate('postedBy', 'name email phone_number');
+    // Find requirement by UUID only
+    const requirement = await Requirement.findOne({ uuid: id })
+      .populate('postedBy', 'name email phone_number userRole')
+      .populate('products');
 
     if (!requirement) {
       return res.status(404).json({
@@ -302,10 +299,7 @@ exports.getRequirement = async (req, res) => {
       });
     }
 
-    res.status(200).json({
-      success: true,
-      data: requirement
-    });
+    res.status(200).json(requirement);
   } catch (error) {
     res.status(500).json({
       success: false,
